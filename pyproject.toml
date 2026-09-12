@@ -1,0 +1,234 @@
+[project]
+name = "token-police"
+version = "1.0.0"
+description = "TokenPolice Python SDK - Budget enforcement and real-time blocking for LLM applications."
+authors = [
+  { name = "TokenPolice", email = "hello@tokenpolice.ai" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+# PEP 639: SPDX expression + license files. Do NOT add a `License ::` trove
+# classifier alongside this — Metadata 2.4 treats the pair as an error.
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Monitoring",
+    "Typing :: Typed",
+]
+dependencies = [
+    "httpx>=0.24.0",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    # Provider instrumentors bundled by default so `pip install token-police`
+    # captures tokens for the common providers with no extra packages. These
+    # instrument whatever provider SDK is importable and do NOT pin a provider
+    # version. (Cohere is NOT here: its instrumentor only supports `cohere <6`
+    # and logs a spurious OTel DependencyConflict — cohere v2 chat + embed are
+    # captured on the manual path instead, like Mistral/xAI. LangChain is the
+    # one opt-in framework extra below, alongside crewai/llamaindex/etc.)
+    # openai instrumentor: >=0.54.0 because 0.52.4-0.53.x crash the customer's
+    # streaming loop (`int(tool_call["index"])` -> int(None) TypeError) when an
+    # OpenAI-compatible endpoint (e.g. Gemini) omits tool-call `index`. The
+    # remaining accumulator crash shapes on ALL versions are guarded by
+    # telemetry._patch_openai_otel_stream_accumulator.
+    "opentelemetry-instrumentation-openai>=0.54.0",
+    "opentelemetry-instrumentation-anthropic>=0.52.4",
+    # Bedrock Converse chat token usage (gen_ai.usage.*) is only populated by the
+    # instrumentor at >=0.61.0; 0.52.4–0.60.x silently undercount Converse cost.
+    "opentelemetry-instrumentation-bedrock>=0.61.0",
+    # google-genai instrumentor: small (~0.5 MB incl. opentelemetry-util-genai),
+    # instruments google-genai 1.x AND 2.x (it declares google-genai<3), and does
+    # NOT pull google-genai itself (that's in the instrumentor's own optional
+    # 'instruments' group). Needs Python >=3.9 — satisfied by our >=3.10 floor.
+    # Bundled so Gemini is captured out of the box like the others.
+    "opentelemetry-instrumentation-google-genai>=0.7b0",
+]
+
+# Canonical public properties. Repository is the public one-way mirror of this
+# directory (the monorepo is private); Homepage is the apex of the
+# tokenpolice.ai domain (the same domain as the default collector host
+# collect.tokenpolice.ai); Documentation is the public docs site.
+[project.urls]
+Homepage = "https://tokenpolice.ai"
+Documentation = "https://tokenpolice.ai/docs"
+Repository = "https://github.com/tokenpolice/token-police-python"
+Issues = "https://github.com/tokenpolice/token-police-python/issues"
+Changelog = "https://github.com/tokenpolice/token-police-python/blob/main/CHANGELOG.md"
+
+# Dependency policy: lower bounds only. Never add a preemptive upper bound; add
+# one only for a documented, concrete incompatibility and track it for removal.
+# Provider/framework SDKs are the customer's to version — the enforcer imports
+# them lazily (guarded) and detects shape at runtime (`_detect.py`); a
+# missing/incompatible version fails open (see `_safe.py`). There are no such
+# caps today.
+[project.optional-dependencies]
+# The umbrella extra: all bundled framework integrations in one install. It must
+# stay a SUPERSET of every standalone extra below (guarded by
+# tests/test_pyproject_all_extra.py). When you add a standalone extra, add its
+# deps here too.
+#
+# Two documented exceptions, both encoded in that test's EXEMPT_FROM_ALL set:
+#   * `crewai` is opt-in, NOT bundled here. crewai >=1.6.0 declares no support
+#     for Python 3.14, so bundling it made `pip install "token-police[all]"` —
+#     the install line our docs give customers — fail the pip resolver on 3.14
+#     for an integration that is not launch-critical. Out of `all`, `[all]`
+#     installs cleanly on 3.14 and `pip install "token-police[crewai]"` fails
+#     with CrewAI's own error, which is the honest message. Nothing else in
+#     `all` blocks 3.14 (verified 2026-09-02). Do NOT re-add crewai here, and do
+#     NOT paper over it with an environment marker or a version cap.
+#   * `dev` is the test toolchain, not an integration.
+all = [
+    # See base deps: >=0.54.0 required — older versions crash customer streaming
+    # loops on index-less tool-call deltas from OpenAI-compatible endpoints.
+    "opentelemetry-instrumentation-openai>=0.54.0",
+    "opentelemetry-instrumentation-anthropic>=0.52.4",
+    "opentelemetry-instrumentation-google-genai>=0.7b0",
+    # NOTE: opentelemetry-instrumentation-mistralai is deliberately absent.
+    # telemetry.py never registers MistralAiInstrumentor (Mistral runs on the
+    # manual-telemetry path on both mistralai majors), so it was pure dead
+    # weight — and on mistralai>=2 it is worse than dead: its module body does
+    # `from mistralai.models import ...`, a module 2.x removed, so importing it
+    # raises ModuleNotFoundError. Do NOT re-add it.
+    # See base deps: >=0.61.0 required for Bedrock Converse chat usage attributes.
+    "opentelemetry-instrumentation-bedrock>=0.61.0",
+    "opentelemetry-instrumentation-langchain>=0.40.0",
+    "litellm>=1.50.0",
+    "llama-index-core>=0.12.0",
+    "llama-index-llms-openai>=0.3.0",
+    "llama-index-llms-anthropic>=0.6.0",
+    "llama-index-llms-google-genai>=0.1.0",
+    # NOTE: crewai is deliberately absent — see the exceptions note above.
+    "pydantic-ai>=0.5.0",
+    "voyageai>=0.2.0",
+    # Native-SDK framework integrations that also have standalone extras below —
+    # kept in the umbrella so `token-police[all]` covers them too.
+    "openai-agents>=0.1.0",
+    "xai-sdk>=0.1.0",
+    "agno>=2.0.0",
+]
+# CrewAI integration — opt-in only, and deliberately NOT part of `all` (see the
+# note above the `all` extra): crewai >=1.6.0 does not support Python 3.14, so
+# `pip install "token-police[crewai]"` is the one install line that fails there,
+# with CrewAI's own resolver error. Python 3.10-3.13.
+# CrewAI's `crewai.llm.LLM.call` invokes
+# `litellm.completion(**params)` directly, so the existing LiteLLM enforcer
+# wrapper transparently captures every CrewAI LLM call (pre-flight check,
+# OpenAI-shaped prompt composition, token usage, streaming). No CrewAI-specific
+# OpenLLMetry instrumentor or enforcer entry is needed — and we intentionally
+# don't pull opentelemetry-instrumentation-crewai because it sets up its own
+# TracerProvider and its spans never reach TokenPoliceSpanProcessor.
+crewai = [
+    "crewai>=1.6.0",
+    "litellm>=1.50.0",
+]
+# LangChain telemetry only. Kept opt-in as a framework integration (alongside
+# crewai/llamaindex/pydantic-ai/agno), mirroring the Node companion-package
+# model — NOT because of any version pin. The instrumentor is floor-only and
+# pins no langchain SDK (langchain lives in its own `instruments` extra). The
+# old `wrapt<2` pin was removed: it guarded 0.50.x's `wrap_function_wrapper(
+# module=...)` kwarg call, but the current instrumentor uses positional calls
+# and runs on wrapt 2.x.
+langchain = [
+    "opentelemetry-instrumentation-langchain>=0.40.0",
+]
+# No [cohere] extra: cohere v2 chat AND embed are captured on the manual
+# telemetry path (enforcer.py `_extract_cohere_chat_usage` + cohere embed Mode C),
+# version-resilient across cohere 5/6/7. We deliberately do NOT ship
+# opentelemetry-instrumentation-cohere — it only supports `cohere <6`, logs a
+# spurious OTel DependencyConflict, and would double-log alongside the manual
+# path. Nothing to install: cohere works out of the box.
+# Google GenAI telemetry is now a BASE dependency (see `dependencies` above) — the
+# instrumentor is small, supports google-genai 1.x AND 2.x, and pins no provider
+# version, so Gemini is captured out of the box. This empty extra is kept only as a
+# no-op back-compat alias so existing `token-police[google]` installs keep working.
+google = []
+# LlamaIndex — no OpenLLMetry instrumentor required; the inner provider's
+# OpenLLMetry span (openai/anthropic/google_genai) carries telemetry while the
+# enforcer wraps LlamaIndex's chat/achat/stream_chat/astream_chat to run the
+# pre-flight check + capture composition.
+llamaindex = [
+    "llama-index-core>=0.12.0",
+    "llama-index-llms-openai>=0.3.0",
+    "llama-index-llms-anthropic>=0.6.0",
+    "llama-index-llms-google-genai>=0.1.0",
+]
+# OpenAI Agents SDK. Runner.run* invokes the OpenAI Responses API under the
+# hood (client.responses.create), which the enforcer patches on the manual
+# telemetry path — no OpenLLMetry instrumentor exists for Responses today.
+openai-agents = [
+    "openai-agents>=0.1.0",
+]
+# pydantic_ai — the enforcer wraps each concrete Model subclass's `request` /
+# `request_stream` on the manual-telemetry path (no OpenLLMetry pydantic_ai
+# instrumentor exists). The wrapper holds the `_in_pydantic_ai` guard across
+# the inner provider SDK call so the underlying openai/anthropic/google/
+# mistral wrappers (and their OpenLLMetry spans) short-circuit — TokenPolice
+# logs a single, pydantic_ai-attributed entry per Model.request call.
+# Floor-only (no cap): if a pydantic_ai/anthropic version combination breaks an
+# import (e.g. the old 0.8.x `UserLocation` rename), the lazy-guarded
+# `_instrument_pydantic_ai` fails open and the customer's app keeps working —
+# we don't gatekeep the customer's version.
+pydantic-ai = [
+    "pydantic-ai>=0.5.0",
+]
+# xAI native SDK (xai-sdk). No OpenLLMetry instrumentor exists; the enforcer
+# patches `xai_sdk.sync.chat.Chat.{sample,stream}` and the aio variant on the
+# manual-telemetry path. xai-sdk uses protobuf-backed Chat instances, so
+# composition is built from `self._proto` (see `_build_xai_pseudo_kwargs`).
+xai = [
+    "xai-sdk>=0.1.0",
+]
+# Agno (github.com/agno-agi/agno) — Python-only agent framework. Agent.run /
+# arun internally call the underlying provider SDK (openai, anthropic,
+# google.genai, ...) which is ALSO patched. The wrapper holds the `_in_agno`
+# guard across the inner SDK call so the underlying wrappers (and their
+# OpenLLMetry spans) short-circuit — TokenPolice logs a single, Agno-
+# attributed entry per Agent.run / arun call. No OpenLLMetry agno
+# instrumentor exists; telemetry is manual, usage extracted from
+# RunOutput.metrics.
+agno = [
+    "agno>=2.0.0",
+]
+# Voyage AI embeddings. Captured on the manual telemetry path (the enforcer
+# patches the Voyage client's embed calls); no OpenLLMetry instrumentor exists.
+# The `voyageai` package is only needed to actually make Voyage calls, so it is
+# an opt-in extra — mirroring the `all` entry that already bundled it.
+voyageai = [
+    "voyageai>=0.2.0",
+]
+# Test toolchain for working on the SDK itself. Deliberately NOT in `all` — it
+# is not an integration, and customers installing `all` should not get pytest.
+# Before this extra existed, no extra provided pytest and every developer
+# install instruction quietly assumed it was already on PATH.
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    # The real `mistralai` package, needed by
+    # tests/test_real_provider_seams_mistral.py — the seam suite that drives
+    # the REAL SDK through a MockTransport and would otherwise `importorskip`
+    # away, hiding exactly the silent "wrapper resolved to nothing" bug it
+    # exists to catch. FLOOR ONLY, never a cap: the SDK pins no provider
+    # version by design (the customer owns it) and the tests are written to
+    # pass on both mistralai 1.x and 2.x.
+    "mistralai>=1.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Ship only the package + docs files in the sdist; without this hatchling
+# defaults to every git-tracked file, which would drop tests/ into the
+# published tarball.
+[tool.hatch.build.targets.sdist]
+include = ["token_police", "README.md", "LICENSE*", "CHANGELOG.md", "SECURITY.md"]
