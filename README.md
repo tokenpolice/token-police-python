@@ -13,6 +13,18 @@ the budget and anomaly rules you set in the dashboard. This SDK is the piece tha
 
 Docs: [tokenpolice.ai/docs](https://tokenpolice.ai/docs) · Dashboard: [app.tokenpolice.ai](https://app.tokenpolice.ai)
 
+Two lines to start. Dry-run is the default: nothing is blocked until you create a rule and switch
+to `enforce`.
+
+```bash
+pip install token-police
+```
+
+```python
+import token_police as tp
+tp.init()  # reads TOKENPOLICE_API_KEY, from app.tokenpolice.ai → API Keys
+```
+
 ## Installation
 
 Requires Python 3.10 or newer.
