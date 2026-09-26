@@ -1,6 +1,6 @@
 [project]
 name = "token-police"
-version = "1.0.0"
+version = "1.0.1"
 description = "TokenPolice Python SDK - Budget enforcement and real-time blocking for LLM applications."
 authors = [
   { name = "TokenPolice", email = "hello@tokenpolice.ai" }
@@ -108,7 +108,15 @@ all = [
     "llama-index-llms-anthropic>=0.6.0",
     "llama-index-llms-google-genai>=0.1.0",
     # NOTE: crewai is deliberately absent — see the exceptions note above.
-    "pydantic-ai>=0.5.0",
+    # pydantic-ai-slim, NOT the `pydantic-ai` umbrella: the umbrella pins
+    # pydantic-ai-slim[openai,logfire,mcp,evals,cli,...], so it drags in
+    # openai>=3.19 (llama-index-llms-openai caps openai<3) and logfire (caps
+    # opentelemetry-sdk below the newest release). Next to the rest of `all`
+    # that forced pip to backtrack ~20 pydantic-ai releases per install and,
+    # on 2026-09-26, to fail with resolution-too-deep. The slim package is the
+    # same `pydantic_ai` import the enforcer patches; the provider SDKs come from
+    # the other entries here. The standalone `pydantic-ai` extra floors slim too.
+    "pydantic-ai-slim>=0.5.0",
     "voyageai>=0.2.0",
     # Native-SDK framework integrations that also have standalone extras below —
     # kept in the umbrella so `token-police[all]` covers them too.
@@ -178,8 +186,11 @@ openai-agents = [
 # import (e.g. the old 0.8.x `UserLocation` rename), the lazy-guarded
 # `_instrument_pydantic_ai` fails open and the customer's app keeps working —
 # we don't gatekeep the customer's version.
+# Floors pydantic-ai-slim (see the note in `all`): the `pydantic-ai` umbrella
+# depends on pydantic-ai-slim, so it satisfies this floor too, and the customer
+# keeps whichever pydantic-ai flavour and model extras they chose.
 pydantic-ai = [
-    "pydantic-ai>=0.5.0",
+    "pydantic-ai-slim>=0.5.0",
 ]
 # xAI native SDK (xai-sdk). No OpenLLMetry instrumentor exists; the enforcer
 # patches `xai_sdk.sync.chat.Chat.{sample,stream}` and the aio variant on the

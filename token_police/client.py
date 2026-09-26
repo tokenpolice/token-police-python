@@ -23,7 +23,7 @@ from .runtime import resolve_deployment
 
 # Bumped each release. Sent on every API request so rollout of a new SDK
 # version is visible fleet-wide.
-SDK_VERSION = "1.0.0"
+SDK_VERSION = "1.0.1"
 SDK_SCHEMA_VERSION = "1"
 
 logger = logging.getLogger("token_police")
